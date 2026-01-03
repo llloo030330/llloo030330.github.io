@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculator</title>
+  <meta name="description" content="A simple web calculator built with HTML, CSS, and JavaScript." />
+  <style>
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; background:#f6f7fb; color:#111; }
+    .wrap { max-width: 520px; margin: 70px auto; padding: 0 16px; }
+    .card { background:#fff; border-radius:18px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.06); }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .top a { text-decoration:none; border:1px solid #ddd; padding:10px 12px; border-radius:12px; color:#111; font-weight:650; background:#fff; }
+    .title { font-weight:800; letter-spacing:-0.3px; }
+    .screen {
+      background:#111; color:#fff; border-radius:14px; padding:14px;
+      min-height: 78px; display:flex; flex-direction:column; justify-content:center; gap:6px;
+    }
+    .expr { opacity:.75; font-size:14px; word-break:break-all; min-height: 18px; }
+    .out  { font-size:34px; font-weight:800; letter-spacing:-0.5px; word-break:break-all; }
+    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; }
+    button {
+      border:1px solid #e7e7e7; background:#fafafa; color:#111;
+      border-radius:14px; padding:14px 10px; font-size:18px; font-weight:750;
+      cursor:pointer; user-select:none;
+    }
+    button:active { transform: translateY(1px); }
+    .op { background:#fff; }
+    .primary { background:#111; color:#fff; border-color:#111; }
+    .danger { background:#fff5f5; border-color:#ffd9d9; }
+    .span2 { grid-column: span 2; }
+    .hint { margin-top:10px; color:#666; font-size:13px; line-height:1.6; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="top">
+        <div class="title">Calculator</div>
+        <a href="/" aria-label="Back to home">Home</a>
+      </div>
+
+      <div class="screen" aria-live="polite">
+        <div class="expr" id="expr"></div>
+        <div class="out" id="out">0</div>
+      </div>
+
+      <div class="grid" role="group" aria-label="Calculator buttons">
+        <button class="danger" data-action="clear">AC</button>
+        <button class="op" data-action="backspace">⌫</button>
+        <button class="op" data-value="(">(</button>
+        <button class="op" data-value=")">)</button>
+
+        <button data-value="7">7</button>
+        <button data-value="8">8</button>
+        <button data-value="9">9</button>
+        <button class="op" data-value="/">÷</button>
+
+        <button data-value="4">4</button>
+        <button data-value="5">5</button>
+        <button data-value="6">6</button>
+        <button class="op" data-value="*">×</button>
+
+        <button data-value="1">1</button>
+        <button data-value="2">2</button>
+        <button data-value="3">3</button>
+        <button class="op" data-value="-">−</button>
+
+        <button class="span2" data-value="0">0</button>
+        <button data-value=".">.</button>
+        <button class="op" data-value="+">+</button>
+
+        <button class="primary span2" data-action="equals">=</button>
+        <button class="op span2" data-action="copy">Copy</button>
+      </div>
+
+      <div class="hint">
+        Keyboard: <b>0-9</b>, <b>+</b> <b>-</b> <b>*</b> <b>/</b>, <b>Enter</b> (=), <b>Backspace</b>, <b>Esc</b>.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const exprEl = document.getElementById("expr");
+    const outEl = document.getElementById("out");
+
+    let expr = "";
+    let lastResult = "0";
+
+    function render() {
+      exprEl.textContent = expr;
+      outEl.textContent = expr.trim() ? preview(expr) : lastResult;
+    }
+
+    function sanitize(s) {
+      // allow digits, operators, parentheses, decimal point, and spaces only
+      return s.replace(/[^\d+\-*/().\s]/g, "");
+    }
+
+    function normalize(s) {
+      // Avoid weird sequences like "**" from accidental input; keep it simple.
+      return s
+        .replace(/×/g, "*")
+        .replace(/÷/g, "/")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function safeEval(s) {
+      const cleaned = normalize(sanitize(s));
+      if (!cleaned) return "0";
+      // Basic guard: expression must contain only safe chars after sanitize
+      // and must not end with an operator (common error).
+      if (/[+\-*/.]$/.test(cleaned)) return "Error";
+      try {
+        const val = Function("return (" + cleaned + ")")();
+        if (!Number.isFinite(val)) return "Error";
+        // Keep it readable
+        return String(Number.isInteger(val) ? val : +val.toFixed(10)).replace(/\.?0+$/, "");
+      } catch {
+        return "Error";
+      }
+    }
+
+    function preview(s) {
+      // Show a live preview, but don’t punish partial inputs too aggressively.
+      const cleaned = normalize(sanitize(s));
+      if (!cleaned) return lastResult;
+      if (/[+\-*/.]$/.test(cleaned)) return lastResult;
+      const r = safeEval(cleaned);
+      return r === "Error" ? lastResult : r;
+    }
+
+    function appendValue(v) {
+      expr += v;
+      render();
+    }
+
+    function clearAll() {
+      expr = "";
+      lastResult = "0";
+      render();
+    }
+
+    function backspace() {
+      expr = expr.slice(0, -1);
+      render();
+    }
+
+    function equals() {
+      const r = safeEval(expr);
+      if (r === "Error") {
+        outEl.textContent = "Error";
+        return;
+      }
+      lastResult = r;
+      expr = "";
+      render();
+    }
+
+    async function copyResult() {
+      try {
+        await navigator.clipboard.writeText(outEl.textContent);
+        const old = outEl.textContent;
+        outEl.textContent = "Copied!";
+        setTimeout(() => (outEl.textContent = old), 700);
+      } catch {
+        // ignore
+      }
+    }
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+      const value = btn.dataset.value;
+
+      if (action === "clear") return clearAll();
+      if (action === "backspace") return backspace();
+      if (action === "equals") return equals();
+      if (action === "copy") return copyResult();
+
+      if (value) appendValue(value);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const k = e.key;
+
+      if (k === "Escape") { e.preventDefault(); return clearAll(); }
+      if (k === "Backspace") { e.preventDefault(); return backspace(); }
+      if (k === "Enter" || k === "=") { e.preventDefault(); return equals(); }
+
+      const allowed = "0123456789+-*/().";
+      if (allowed.includes(k)) {
+        e.preventDefault();
+        appendValue(k);
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
